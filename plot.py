@@ -16,14 +16,6 @@ df.columns = [cols.description_to_name[c.strip()] for c in df.columns]
 # just members of ECP
 ecp = df[df.in_ecp == "Yes"]
 
-# only ECP
-# df = df[""]
-
-# make an arbitrary-length colormap
-#cm = plt.get_cmap('rainbow')
-#c = [cm(1.0 * i/len(df_thres)) for i in range(len(df_thres))]
-#clist2 = {i:j for i, j in zip(df_thres[0].values, c)}
-
 #
 # Are you part of ECP?
 #
@@ -54,6 +46,7 @@ def two_pies(col, legend_cols=2, same=False):
             which case we omit the ECP-specific ones)
 
     """
+    plt.close()
     combined = pd.DataFrame()
     combined["All"] = df[col].value_counts()
     if not same:
@@ -101,23 +94,89 @@ two_pies("how_often_docs")
 two_pies("commercial_support", same=True)
 
 
+
+#
+# Simple bar charts
+#
+def two_bars(col, same=False):
+    """Plot two bar charts to compare all responses with ECP responses.
+
+    Args:
+        col (str): name of column to compare
+        same (bool): whether ECP results were pretty much the same as all (in
+            which case we omit the ECP-specific ones)
+
+    """
+    plt.close()
+    combined = pd.DataFrame()
+    combined["All"] = df[col].value_counts(sort=False)
+    combined["ECP"] = ecp[col].value_counts(sort=False)
+    axes = combined.plot.bar(
+        subplots=True,
+        layout=(1, 2),
+        figsize=(8, 4),
+        fontsize=12,
+        legend=False,
+        ylabel='',
+        xlabel="at least N years",
+        title=cols.names[col],
+    )
+
+    plt.tight_layout()
+    axes[0][0].set_title("All\n(ECP responses were similar)")
+    if not same:
+        axes[0][0].set_title("All")
+        axes[0][1].set_title("ECP")
+
+    plt.savefig("%s.pdf" % col)
+
 # not pie charts
-#two_pies("how_long_using")
-#two_pies("app_area")
-#two_pies("how_contributed")
+two_bars("how_long_using")
 
+#
+# Multi-choice bar charts
+#
+def two_multi_bars(col, sort=None, index=None):
+    """Plot two bar charts to compare all responses with ECP responses.
 
+    Args:
+        col (str): name of column to compare
+        index (list): custom index for plot
+    """
+    plt.close()
+    combined = pd.DataFrame(index=index)
+    combined["All"] = df[
+        col].str.split(',\s+', expand=True).stack().value_counts()
+    combined["All"] /= df.shape[0]
+    combined["All"] *= 100
 
+    combined["ECP"] = ecp[
+        col].str.split(',\s+', expand=True).stack().value_counts()
+    combined["ECP"] /= ecp.shape[0]
+    combined["ECP"] *= 100
 
-#two_pies("spack_versions")
-#two_pies("os")
-#two_pies("python_version")
-#two_pies("how_use_pkgs")
-#two_pies("used_features")
-#two_pies("cpus_next_year")
-#two_pies("gpus_next_year")
-#two_pies("compilers_next_year")
-#two_pies("how_get_help")
+    axes = combined.plot.barh(
+        figsize=(8, 4),
+        fontsize=12,
+        legend=True,
+        title=cols.names[col],
+    )
+
+    plt.tight_layout()
+    plt.savefig("%s.pdf" % col)
+
+two_multi_bars("app_area")
+two_multi_bars("how_contributed")
+two_multi_bars("spack_versions")
+two_multi_bars("os")
+two_multi_bars("python_version",
+               index=reversed(['2.6', '2.7', '3.5', '3.6', '3.7', '3.8']))
+two_multi_bars("how_use_pkgs")
+two_multi_bars("used_features")
+two_multi_bars("cpus_next_year")
+two_multi_bars("gpus_next_year")
+two_multi_bars("compilers_next_year")
+two_multi_bars("how_get_help")
 
 
 "feature_importance_concretizer"
