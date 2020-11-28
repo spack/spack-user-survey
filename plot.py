@@ -1,11 +1,15 @@
 #!/usr/bin/env python3
 
+import os
 import sys
 
 import pandas as pd
 import matplotlib.pyplot as plt
 
 import column_names as cols
+
+if not os.path.isdir("figs"):
+    os.mkdir("figs")
 
 # entire community
 df = pd.read_csv("data/spack-user-survey-2020-responses.csv")
@@ -30,7 +34,7 @@ ax = df.in_ecp.value_counts().plot.pie(
     textprops={'color':"w"}
 )
 ax.legend(loc="lower left", fontsize=12, bbox_to_anchor=(-.2, 0))
-plt.savefig("in_ecp.pdf")
+plt.savefig("figs/in_ecp.pdf")
 
 
 #
@@ -80,7 +84,7 @@ def two_pies(col, legend_cols=2, same=False):
         labels=combined.index,
         fontsize=12,
     )
-    plt.savefig("%s.pdf" % col)
+    plt.savefig("figs/%s.pdf" % col)
 
 two_pies("user_type")
 two_pies("workplace")
@@ -128,7 +132,7 @@ def two_bars(col, same=False):
         axes[0][0].set_title("All")
         axes[0][1].set_title("ECP")
 
-    plt.savefig("%s.pdf" % col)
+    plt.savefig("figs/%s.pdf" % col)
 
 # not pie charts
 two_bars("how_long_using")
@@ -163,7 +167,7 @@ def two_multi_bars(col, sort=None, index=None):
     )
 
     plt.tight_layout()
-    plt.savefig("%s.pdf" % col)
+    plt.savefig("figs/%s.pdf" % col)
 
 two_multi_bars("app_area")
 two_multi_bars("how_contributed")
@@ -179,19 +183,86 @@ two_multi_bars("compilers_next_year")
 two_multi_bars("how_get_help")
 
 
-"feature_importance_concretizer"
-"feature_use_existing_installs"
-"feature_separate_build_deps"
-"feature_cloud_integration"
-"feature_optimized_binaries"
-"feature_developer_support"
-"feature_pkg_notifications"
-"feature_build_testing"
-"feature_language_virtuals"
-"feature_testing"
-"feature_better_flag_handling"
-"feature_windows"
-"feature_custom"
+#
+# Multi-choice bar charts
+#
+def clustered_bars(cols):
+    """Plot two clustered bar charts comparing all responses with ECP.
+
+    Args:
+        col (str): name of column to compare
+        index (list): custom index for plot
+    """
+    plt.close()
+
+    combined = pd.DataFrame()
+    combined["All"] = df[
+        col].str.split(',\s+', expand=True).stack().value_counts()
+    combined["All"] /= df.shape[0]
+    combined["All"] *= 100
+
+    combined["ECP"] = ecp[
+        col].str.split(',\s+', expand=True).stack().value_counts()
+    combined["ECP"] /= ecp.shape[0]
+    combined["ECP"] *= 100
+
+    axes = combined.plot.barh(
+        figsize=(8, 4),
+        fontsize=12,
+        legend=True,
+        title=cols.names[col],
+    )
+
+    plt.tight_layout()
+    plt.savefig("figs/%s.pdf" % col)
+
+
+ratings = [
+    "Not Important",
+    "Slightly Important",
+    "Somewhat important",
+    "Very Important",
+    "Critical"
+]
+weights = { r: i for i, r in enumerate(ratings) }
+
+
+plt.close()
+feature_cols = [
+    "feature_importance_concretizer",
+    "feature_use_existing_installs",
+    "feature_separate_build_deps",
+    "feature_cloud_integration",
+    "feature_optimized_binaries",
+    "feature_developer_support",
+    "feature_pkg_notifications",
+    "feature_build_testing",
+    "feature_language_virtuals",
+    "feature_testing",
+    "feature_better_flag_handling",
+    "feature_windows",
+]
+
+def feature_bar_chart(df, name):
+    # value counts for all columns
+    values = df[feature_cols].apply(
+        pd.Series.value_counts, sort=False).reindex(ratings).transpose()
+
+    ax = values.plot.bar(y=ratings, figsize=(12, 4))
+    ax.legend(ncol=5, labels=ratings)
+    plt.tight_layout()
+    plt.savefig("figs/%s.pdf" % name)
+
+feature_bar_chart(df, "all_features")
+feature_bar_chart(ecp, "ecp_features")
+
+weights = {
+    "Horrible": 0,
+    "Bad": 1,
+    "OK": 2,
+    "Good": 3,
+    "Excellent": 4,
+}
 
 "quality_docs"
 "quality_community"
