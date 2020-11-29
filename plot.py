@@ -10,7 +10,7 @@ import seaborn as sn
 import column_names as cols
 
 
-file_formats = ["pdf", "svg"]
+file_formats = ["pdf"]#, "svg"]
 
 def save(name):
     if not os.path.isdir("figs"):
@@ -45,7 +45,7 @@ ax = df.in_ecp.value_counts().plot.pie(
     textprops={'color':"w"}
 )
 ax.legend(loc="lower left", fontsize=12, bbox_to_anchor=(-.2, 0))
-save("in_ecp")
+save("pie_in_ecp")
 
 
 #
@@ -95,7 +95,7 @@ def two_pies(col, legend_cols=2, same=False):
         labels=combined.index,
         fontsize=12,
     )
-    save(col)
+    save("two_pies_" + col)
 
 two_pies("user_type")
 two_pies("workplace")
@@ -129,7 +129,7 @@ def two_bars(col, same=False):
     axes = combined.plot.bar(
         subplots=True,
         layout=(1, 2),
-        figsize=(8, 4),
+        figsize=(8, 3),
         fontsize=12,
         legend=False,
         ylabel='',
@@ -143,7 +143,7 @@ def two_bars(col, same=False):
         axes[0][0].set_title("All")
         axes[0][1].set_title("ECP")
 
-    save(col)
+    save("two_bars_" + col)
 
 # not pie charts
 two_bars("how_long_using")
@@ -151,13 +151,16 @@ two_bars("how_long_using")
 #
 # Multi-choice bar charts
 #
-def two_multi_bars(col, sort=None, index=None, filt=None, name=None):
+def two_multi_bars(col, sort=None, index=None, filt=None, name=None,
+                   figsize=(5, 4)):
     """Plot two bar charts to compare all responses with ECP responses.
 
     Args:
         col (str): name of column to compare
         index (list): custom index for plot
         filt (callable): optional function to filter column by
+        name (str): name for the figure
+        figsize (tuple): dimensions in inches for the figure
     """
     if filt is None:
         filt = lambda x: x
@@ -176,28 +179,37 @@ def two_multi_bars(col, sort=None, index=None, filt=None, name=None):
     combined["ECP"] /= ecp.shape[0]
     combined["ECP"] *= 100
 
-    axes = combined.plot.barh(
-        figsize=(8, 4),
-        fontsize=12,
+    combined = combined.sort_values(by="All", ascending=True)
+    ax = combined.plot.barh(
+        figsize=figsize,
         legend=True,
         title=cols.names[col],
     )
+    ax.legend(loc="lower right", fontsize=12)
 
     plt.xlabel("Percent of respondents")
     plt.tight_layout()
-    save(name)
+    save("two_multi_bars_" + name)
 
-two_multi_bars("app_area")
+two_multi_bars("app_area", figsize=(5, 5))
 two_multi_bars("how_contributed")
 two_multi_bars("spack_versions")
-two_multi_bars("os")
+two_multi_bars("os", filt=lambda df: df.replace(
+    "Windows Subsystem for Linux (WSL)", "WSL"))
 two_multi_bars("python_version",
                index=reversed(['2.6', '2.7', '3.5', '3.6', '3.7', '3.8']))
-two_multi_bars("how_use_pkgs")
-two_multi_bars("used_features")
+two_multi_bars("how_use_pkgs", figsize=(6, 5), filt=lambda df: df.replace(
+    ["Environment Modules (TCL modules)"], "TCL Modules"))
+two_multi_bars(
+    "used_features",
+    filt=lambda df: df.replace(r' \([^)]*\)', '', regex=True).replace(
+        "Concretization preferences in packages.yaml",
+        "Concretization preferences"
+    ).replace("Externals in packages.yaml", "External packages"),
+    figsize=(6, 5))
 two_multi_bars("cpus_next_year")
 two_multi_bars("gpus_next_year")
-two_multi_bars("compilers_next_year")
+two_multi_bars("compilers_next_year", figsize=(7, 4))
 two_multi_bars("how_get_help")
 
 linuxes = [
@@ -206,7 +218,8 @@ linuxes = [
 ]
 
 def linuxize(df):
-    linux = df.replace(linuxes, "Linux")
+    linux = df.replace(linuxes, "Linux").replace(
+        "Windows Subsystem for Linux (WSL)", "WSL")
     is_duplicate = linux.apply(pd.Series.duplicated, axis=1)
     return linux.where(~is_duplicate, None)
 
@@ -218,42 +231,100 @@ def modulize(df):
     """Add another column for "any module system"."""
     has_modules = df.apply(lambda ser: ser.isin(mods).any(), axis=1)
     mod_col = has_modules.apply(lambda c: "Modules (TCL or Lmod)" if c else None)
-    return pd.concat([df, mod_col], axis=1)
+    frame = pd.concat([df, mod_col], axis=1)
+    frame = frame.replace(["Environment Modules (TCL modules)"], "TCL Modules")
+    return frame
 
-two_multi_bars("how_use_pkgs", filt=modulize, name="how_use_pkgs_any")
+
+two_multi_bars("how_use_pkgs", filt=modulize, name="how_use_pkgs_any",
+               figsize=(6, 5))
 
 #
 # Multi-choice bar charts
 #
-def clustered_bars(cols):
-    """Plot two clustered bar charts comparing all responses with ECP.
+def feature_bar_chart(df, name, feature_cols, ratings, xlabels):
+    # value counts for all columns
+    values = df[feature_cols].apply(
+        pd.Series.value_counts, sort=False).reindex(ratings).transpose()
+
+    ax = values.plot.bar(y=ratings, figsize=(12, 4), rot=0)
+    ax.legend(ncol=5, labels=ratings)
+    plt.xticks(rotation=45)
+    if xlabels:
+        ax.set_xticklabels(xlabels)
+    plt.tight_layout()
+    save("feature_bars_" + name)
+
+
+def score_averages(df, feature_cols, ratings, weights):
+    """Calculate average scores for features
 
     Args:
-        col (str): name of column to compare
-        index (list): custom index for plot
+        df (DataFrame): data set
+        feature_cols (list): list of column names to average
+        ratings (list): values from the feature cols associated w/weights,
+            e.g. "bad", "ok", "good"
+        weights (dict): weights associated with ratings, e.g.,
+            {"bad": 0, "ok": 1, "good": 2}.
+    """
+    values = df[feature_cols].apply(pd.Series.value_counts).reindex(ratings)
+    w = pd.Series(weights, index=ratings)
+    return values.multiply(w, axis="index").sum() / values.sum()
+
+
+def heat_map(
+        title, filename, feature_cols, ratings, weights, labels, transpose,
+        data_sets):
+    """Generate a heat ma of
+
+    Args:
+        title (str): title for figure
+        filename (str): name for figure file
+        feature_cols (list): list of column names to average
+        ratings (list): values from the feature cols associated w/weights,
+            e.g. "bad", "ok", "good"
+        weights (dict): weights associated with ratings, e.g.,
+            {"bad": 0, "ok": 1, "good": 2}.
+        labels (optional list): labels for the features -- default is feature
+            column names.
+        transpose (bool): True for features on X axis, False for labels on Y.
+        data_sets (dict str -> DataFrame): names for y axis of heat map,
+            mapped to data frames to get stats from.
     """
     plt.close()
+    plt.figure()
+    heat_map = pd.DataFrame({
+        name: score_averages(frame, feature_cols, ratings, weights)
+        for name, frame in data_sets.items()
+    })
+    if transpose:
+        heat_map = heat_map.transpose()
+    heat_map = heat_map.sort_values(by=heat_map.columns[0], ascending=False)
+    ax = sn.heatmap(
+        heat_map, cmap="RdYlGn", annot=True, vmin=0, vmax=4, square=True,
+        fmt=".1f", annot_kws={"size": 9})
 
-    combined = pd.DataFrame()
-    combined["All"] = df[
-        col].str.split(',\s+', expand=True).stack().value_counts()
-    combined["All"] /= df.shape[0]
-    combined["All"] *= 100
+    cbar = ax.collections[0].colorbar
+    cbar.set_ticks(range(5))
+    cbar.set_ticklabels([
+        "%d - %s" % (i, s.replace(' ', '\n     '))
+        for i, s in enumerate(ratings)
+    ])
+    cbar.ax.tick_params(labelsize=9)
 
-    combined["ECP"] = ecp[
-        col].str.split(',\s+', expand=True).stack().value_counts()
-    combined["ECP"] /= ecp.shape[0]
-    combined["ECP"] *= 100
+    plt.title(title + "\n", fontsize=11)
+    plt.xticks(rotation=45)
+    if labels:
+        if transpose:
+            ax.set_xticklabels(labels, ha="right")
+        else:
+            ax.set_yticklabels(labels)
+            ax.set_xticklabels(data_sets.keys(), ha="right")
 
-    axes = combined.plot.barh(
-        figsize=(8, 4),
-        fontsize=12,
-        legend=True,
-        title=cols.names[col],
-    )
+    ax.tick_params(axis='both', which='major', labelsize=9)
 
     plt.tight_layout()
-    save(col)
+    save("heat_map_" + filename)
 
 
 ratings = [
@@ -296,99 +367,67 @@ xlabels = [
     "Windows support",
 ]
 
-
-def feature_bar_chart(df, name, feature_cols, ratings, xlabels):
-    # value counts for all columns
-    values = df[feature_cols].apply(
-        pd.Series.value_counts, sort=False).reindex(ratings).transpose()
-
-    ax = values.plot.bar(y=ratings, figsize=(12, 4), rot=0)
-    ax.legend(ncol=5, labels=ratings)
-    plt.xticks(rotation=45)
-    if xlabels:
-        ax.set_xticklabels(xlabels)
-    plt.tight_layout()
-    save(name)
-
 plt.close()
 feature_bar_chart(df, "all_features", feature_cols, ratings, xlabels)
 feature_bar_chart(ecp, "ecp_features", feature_cols, ratings, xlabels)
 
+heat_map(
+    "Average feature importance by workplace",
+    "features_by_workplace",
+    feature_cols, ratings, weights, xlabels, False, {
+        "All"        : df,
+        "ECP"        : df[df.in_ecp == "Yes"],
+        "NNSA"       : df[df.workplace == "DOE/NNSA Lab (e.g., LLNL/LANL/SNL)"],
+        "ASCR"       : df[df.workplace == "DOE/Office of Science Lab (ORNL/ANL/LBL)"],
+        "Industry"   : df[(df.workplace == "Company")
+                          | (df.workplace == "Cloud Provider")],
+        "University" : df[df.workplace == "University HPC/Computing Center"],
+        "Public Lab" : df[df.workplace == "Other Public Research Lab"],
+    }
+)
+
+heat_map(
+    "Average feature importance by job type",
+    "features_by_job",
+    feature_cols, ratings, weights, xlabels, False, {
+        "All"                  : df,
+        "Developer"    : df[(df.user_type == "Software Developer")
+                            | (df.user_type == "All of the Above")],
+        "Scientist"    : df[(df.user_type == "Scientist/Researcher")
+                            | (df.user_type == "All of the Above")],
+        "Sys Admin"    : df[(df.user_type == "System Administrator")
+                            | (df.user_type == "All of the Above")],
+        "User Support" : df[(df.user_type == "User Support Staff")
+                            | (df.user_type == "All of the Above")],
+        "Manager"      : df[(df.user_type == "Manager")
+                            | (df.user_type == "All of the Above")],
+    }
+)
+
+#
+# Quality ratings
+#
 ratings = ["Horrible", "Bad", "OK", "Good", "Excellent"]
 weights = { r: i for i, r in enumerate(ratings) }
 
 feature_cols = [
-    "quality_docs",
-    "quality_community",
-    "quality_packages",
     "quality_spack",
+    "quality_community",
+    "quality_docs",
+    "quality_packages",
 ]
 
-xlabels = ["Docs", "Community", "Packages", "Spack"]
+xlabels = ["Spack", "Community", "Docs", "Packages"]
 
 plt.close()
 feature_bar_chart(df, "all_quality", feature_cols, ratings, xlabels)
 feature_bar_chart(ecp, "ecp_quality", feature_cols, ratings, xlabels)
 
 
-#
-# Quality heatmaps
-#
-def score_averages(df, feature_cols, ratings, weights):
-    """Calculate average scores for features
-
-    Args:
-        df (DataFrame): data set
-        feature_cols (list): list of column names to average
-        ratings (list): values from the feature cols associated w/weights,
-            e.g. "bad", "ok", "good"
-        weights (dict): weights associated with ratings, e.g.,
-            {"bad": 0, "ok": 1, "good": 2}.
-    """
-    values = df[feature_cols].apply(pd.Series.value_counts).reindex(ratings)
-    w = pd.Series(weights, index=ratings)
-    return values.multiply(w, axis="index").sum() / values.sum()
-
-
-def heat_map(
-        title, filename, feature_cols, ratings, weights, xlabels, data_sets):
-    """Generate a heat ma of
-
-    Args:
-        title (str): title for figure
-        filename (str): name for figure file
-        feature_cols (list): list of column names to average
-        ratings (list): values from the feature cols associated w/weights,
-            e.g. "bad", "ok", "good"
-        weights (dict): weights associated with ratings, e.g.,
-            {"bad": 0, "ok": 1, "good": 2}.
-        xlabels (optional list): labels for the X axis -- default
-            is feature names.
-        data_sets (dict str -> DataFrame): names for y axis of heat map,
-            mapped to data frames to get stats from.
-    """
-    plt.close()
-    plt.figure()
-    heat_map = pd.DataFrame({
-        name: score_averages(frame, feature_cols, ratings, weights)
-        for name, frame in data_sets.items()
-    }).transpose()
-    ax = sn.heatmap(heat_map, cmap="RdYlGn", annot=True, vmin=0, vmax=4, square=True)
-    cbar = ax.collections[0].colorbar
-    cbar.set_ticks(range(5))
-    cbar.set_ticklabels(["%d - %s" % (i, s) for i, s in enumerate(ratings)])
-
-    plt.title(title)
-    plt.xticks(rotation=45)
-    if xlabels:
-        ax.set_xticklabels(xlabels)
-    plt.tight_layout()
-    save(filename)
-
 heat_map(
     "Average quality rating by workplace",
-    "heatmap_by_workplace",
-    feature_cols, ratings, weights, xlabels, {
+    "quality_by_workplace",
+    feature_cols, ratings, weights, xlabels, True, {
         "All"        : df,
         "ECP"        : df[df.in_ecp == "Yes"],
         "NNSA"       : df[df.workplace == "DOE/NNSA Lab (e.g., LLNL/LANL/SNL)"],
@@ -402,18 +441,18 @@ heat_map(
 
 heat_map(
     "Average quality rating by job type",
-    "heatmap_by_job",
-    feature_cols, ratings, weights, xlabels, {
-        "All"                  : df,
-        "Software Developer"   : df[(df.user_type == "Software Developer")
-                                    | (df.user_type == "All of the Above")],
-        "Scientist/Researcher" : df[(df.user_type == "Scientist/Researcher")
-                                    | (df.user_type == "All of the Above")],
-        "System Administrator" : df[(df.user_type == "System Administrator")
-                                    | (df.user_type == "All of the Above")],
-        "User Support Staff"   : df[(df.user_type == "User Support Staff")
-                                    | (df.user_type == "All of the Above")],
-        "Manager"              : df[(df.user_type == "Manager")
-                                    | (df.user_type == "All of the Above")],
+    "quality_by_job",
+    feature_cols, ratings, weights, xlabels, True, {
+        "All"          : df,
+        "Developer"    : df[(df.user_type == "Software Developer")
+                            | (df.user_type == "All of the Above")],
+        "Scientist"    : df[(df.user_type == "Scientist/Researcher")
+                            | (df.user_type == "All of the Above")],
+        "Sys Admin"    : df[(df.user_type == "System Administrator")
+                            | (df.user_type == "All of the Above")],
+        "User Support" : df[(df.user_type == "User Support Staff")
+                            | (df.user_type == "All of the Above")],
+        "Manager"      : df[(df.user_type == "Manager")
+                            | (df.user_type == "All of the Above")],
     }
 )
