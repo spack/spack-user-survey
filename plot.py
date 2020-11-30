@@ -10,7 +10,7 @@ import seaborn as sn
 import column_names as cols
 
 
-file_formats = ["pdf"]#, "svg"]
+file_formats = ["pdf", "svg"]
 
 def save(name):
     if not os.path.isdir("figs"):
@@ -242,17 +242,22 @@ two_multi_bars("how_use_pkgs", filt=modulize, name="how_use_pkgs_any",
 #
 # Multi-choice bar charts
 #
-def feature_bar_chart(df, name, feature_cols, ratings, xlabels):
+def feature_bar_chart(
+        df, title, name, feature_cols, ratings, xlabels, figsize, rot=25,
+        ha="right", ymax=None):
     # value counts for all columns
     values = df[feature_cols].apply(
         pd.Series.value_counts, sort=False).reindex(ratings).transpose()
 
-    ax = values.plot.bar(y=ratings, figsize=(12, 4), rot=0)
+    ax = values.plot.bar(y=ratings, figsize=figsize, rot=0)
     ax.legend(ncol=5, labels=ratings)
-    plt.xticks(rotation=45)
+    plt.xticks(rotation=rot)
+    if ymax:
+        plt.ylim(0, ymax)
     if xlabels:
-        ax.set_xticklabels(xlabels)
+        ax.set_xticklabels(xlabels, ha=ha)
     plt.tight_layout()
+    plt.title(title)
     save("feature_bars_" + name)
 
 
@@ -368,8 +373,12 @@ xlabels = [
 ]
 
 plt.close()
-feature_bar_chart(df, "all_features", feature_cols, ratings, xlabels)
-feature_bar_chart(ecp, "ecp_features", feature_cols, ratings, xlabels)
+feature_bar_chart(
+    df, "Rank these upcoming Spack features by importance",
+    "all_features", feature_cols, ratings, xlabels, figsize=(12, 3))
+feature_bar_chart(
+    ecp, "Rank these upcoming Spack features by importance (ECP)",
+    "ecp_features", feature_cols, ratings, xlabels, figsize=(12, 3))
 
 heat_map(
     "Average feature importance by workplace",
@@ -420,9 +429,12 @@ feature_cols = [
 xlabels = ["Spack", "Community", "Docs", "Packages"]
 
 plt.close()
-feature_bar_chart(df, "all_quality", feature_cols, ratings, xlabels)
-feature_bar_chart(ecp, "ecp_quality", feature_cols, ratings, xlabels)
-
+feature_bar_chart(df, "Rate the overall quality of...",
+                  "all_quality", feature_cols, ratings, xlabels,
+                  figsize=(7, 2), rot=0, ha="center", ymax=110)
+feature_bar_chart(ecp, "Rate the overall quality of... (ECP)",
+                  "ecp_quality", feature_cols, ratings, xlabels,
+                  figsize=(7, 2), rot=0, ha="center", ymax=40)
 
 heat_map(
     "Average quality rating by workplace",
