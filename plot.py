@@ -41,12 +41,14 @@ ax = df.in_ecp.value_counts().plot.pie(
     autopct=lambda p: ("%.1f%%" % p) if p > 4 else "",
     explode=[0.05] * 2,
     ylabel='',
+    legend=False,
+    labels=[''] * 2,
     pctdistance=0.7,
     title=cols.names["in_ecp"],
     textprops={'color':"w"}
 )
 ax.legend(loc="lower left", fontsize=12, bbox_to_anchor=(-.2, 0),
-          frameon=False)
+          frameon=False, labels=["All", "ECP"])
 save("pie_in_ecp")
 
 
