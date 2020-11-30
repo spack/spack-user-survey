@@ -20,6 +20,7 @@ def save(name):
             "figs/%s.%s" % (name, fmt),
             bbox_inches='tight',
             pad_inches=0,
+            transparent=True,
         )
 
 # entire community
@@ -44,7 +45,8 @@ ax = df.in_ecp.value_counts().plot.pie(
     title=cols.names["in_ecp"],
     textprops={'color':"w"}
 )
-ax.legend(loc="lower left", fontsize=12, bbox_to_anchor=(-.2, 0))
+ax.legend(loc="lower left", fontsize=12, bbox_to_anchor=(-.2, 0),
+          frameon=False)
 save("pie_in_ecp")
 
 
@@ -94,6 +96,7 @@ def two_pies(col, legend_cols=2, same=False):
         loc="upper left",
         labels=combined.index,
         fontsize=12,
+        frameon=False,
     )
     save("two_pies_" + col)
 
@@ -108,19 +111,14 @@ two_pies("did_tutorial")
 two_pies("how_often_docs")
 two_pies("commercial_support")
 
-
-
 #
 # Simple bar charts
 #
-def two_bars(col, same=False):
+def two_bars(col):
     """Plot two bar charts to compare all responses with ECP responses.
 
     Args:
         col (str): name of column to compare
-        same (bool): whether ECP results were pretty much the same as all (in
-            which case we omit the ECP-specific ones)
-
     """
     plt.close()
     combined = pd.DataFrame()
@@ -138,10 +136,8 @@ def two_bars(col, same=False):
     )
 
     plt.tight_layout()
-    axes[0][0].set_title("All\n(ECP responses were similar)")
-    if not same:
-        axes[0][0].set_title("All")
-        axes[0][1].set_title("ECP")
+    axes[0][0].set_title("All")
+    axes[0][1].set_title("ECP")
 
     save("two_bars_" + col)
 
@@ -179,13 +175,14 @@ def two_multi_bars(col, sort=None, index=None, filt=None, name=None,
     combined["ECP"] /= ecp.shape[0]
     combined["ECP"] *= 100
 
-    combined = combined.sort_values(by="All", ascending=True)
+    if not index:
+        combined = combined.sort_values(by="All", ascending=True)
     ax = combined.plot.barh(
         figsize=figsize,
         legend=True,
         title=cols.names[col],
     )
-    ax.legend(loc="lower right", fontsize=12)
+    ax.legend(loc="lower right", fontsize=12, frameon=False)
 
     plt.xlabel("Percent of respondents")
     plt.tight_layout()
@@ -197,7 +194,7 @@ two_multi_bars("spack_versions")
 two_multi_bars("os", filt=lambda df: df.replace(
     "Windows Subsystem for Linux (WSL)", "WSL"))
 two_multi_bars("python_version",
-               index=reversed(['2.6', '2.7', '3.5', '3.6', '3.7', '3.8']))
+               index=['2.6', '2.7', '3.5', '3.6', '3.7', '3.8'])
 two_multi_bars("how_use_pkgs", figsize=(6, 5), filt=lambda df: df.replace(
     ["Environment Modules (TCL modules)"], "TCL Modules"))
 two_multi_bars(
@@ -211,6 +208,10 @@ two_multi_bars("cpus_next_year")
 two_multi_bars("gpus_next_year")
 two_multi_bars("compilers_next_year", figsize=(7, 4))
 two_multi_bars("how_get_help")
+two_multi_bars(
+    "num_installations", index=reversed([
+        "1 - 10", "10 - 100", "100 - 200", "200 - 500", "500-1,000", "> 1,000"
+    ]))
 
 linuxes = [
     "Gentoo", "Cray", "Amazon Linux", "Alpine", "TOSS", "Arch",
@@ -244,13 +245,13 @@ two_multi_bars("how_use_pkgs", filt=modulize, name="how_use_pkgs_any",
 #
 def feature_bar_chart(
         df, title, name, feature_cols, ratings, xlabels, figsize, rot=25,
-        ha="right", ymax=None):
+        ha="right", ymax=None, colors=None):
     # value counts for all columns
     values = df[feature_cols].apply(
         pd.Series.value_counts, sort=False).reindex(ratings).transpose()
 
-    ax = values.plot.bar(y=ratings, figsize=figsize, rot=0)
-    ax.legend(ncol=5, labels=ratings)
+    ax = values.plot.bar(y=ratings, figsize=figsize, rot=0, color=colors)
+    ax.legend(ncol=5, labels=ratings, frameon=False)
     plt.xticks(rotation=rot)
     if ymax:
         plt.ylim(0, ymax)
@@ -290,8 +291,7 @@ def heat_map(
             e.g. "bad", "ok", "good"
         weights (dict): weights associated with ratings, e.g.,
             {"bad": 0, "ok": 1, "good": 2}.
-        labels (optional list): labels for the features -- default is feature
-            column names.
+        labels (list): labels for the features -- default is feature col names.
         transpose (bool): True for features on X axis, False for labels on Y.
         data_sets (dict str -> DataFrame): names for y axis of heat map,
             mapped to data frames to get stats from.
@@ -304,7 +304,15 @@ def heat_map(
     })
     if transpose:
         heat_map = heat_map.transpose()
+
+    # sort from highest to loweset rated
     heat_map = heat_map.sort_values(by=heat_map.columns[0], ascending=False)
+
+    # order labels by value sort
+    if not transpose:
+        feature_labels = dict(zip(feature_cols, labels))
+        labels = [feature_labels[col] for col in heat_map.index]
+
     ax = sn.heatmap(
         heat_map, cmap="RdYlGn", annot=True, vmin=0, vmax=4, square=True,
         fmt=".1f", annot_kws={"size": 9})
@@ -319,18 +327,19 @@ def heat_map(
 
     plt.title(title + "\n", fontsize=11)
     plt.xticks(rotation=45)
-    if labels:
-        if transpose:
-            ax.set_xticklabels(labels, ha="right")
-        else:
-            ax.set_yticklabels(labels)
-            ax.set_xticklabels(data_sets.keys(), ha="right")
+    if transpose:
+        ax.set_xticklabels(labels, ha="right")
+    else:
+        ax.set_yticklabels(labels)
+        ax.set_xticklabels(data_sets.keys(), ha="right")
 
     ax.tick_params(axis='both', which='major', labelsize=9)
 
     plt.tight_layout()
     save("heat_map_" + filename)
 
+# These colors match to the Red/Yellow/Green heat maps
+colors = ["#cc2222", "orange", "#dddd00", "#94c772", "green"]
 
 ratings = [
     "Not Important",
@@ -343,42 +352,44 @@ weights = { r: i for i, r in enumerate(ratings) }
 
 
 feature_cols = [
-    "feature_importance_concretizer",
-    "feature_use_existing_installs",
-    "feature_separate_build_deps",
-    "feature_cloud_integration",
-    "feature_optimized_binaries",
-    "feature_developer_support",
-    "feature_pkg_notifications",
-    "feature_build_testing",
-    "feature_language_virtuals",
-    "feature_testing",
-    "feature_better_flag_handling",
-    "feature_windows",
+    'feature_use_existing_installs',
+    'feature_new_concretizer',
+    'feature_better_flag_handling',
+    'feature_developer_support',
+    'feature_separate_build_deps',
+    'feature_language_virtuals',
+    'feature_pkg_notifications',
+    'feature_build_testing',
+    'feature_optimized_binaries',
+    'feature_testing',
+    'feature_cloud_integration',
+    'feature_windows',
 ]
 
 xlabels = [
-    "New concretizer",
     "Reuse existing installs",
+    "New concretizer",
+    "Better flag handling",
+    "Better dev support",
     "Separate build-deps",
-    "Cloud integration",
-    "Opt. binaries",
-    "Dev support",
+    "Language virtuals",
     "Pkg maintainer notif.",
     "Build testing (CI)",
-    "Language virtuals",
-    "Pkg testing",
-    "Better flag handling",
+    "Optimized binaries",
+    "Package testing",
+    "Cloud integration",
     "Windows support",
 ]
 
 plt.close()
 feature_bar_chart(
     df, "Rank these upcoming Spack features by importance",
-    "all_features", feature_cols, ratings, xlabels, figsize=(12, 3))
+    "all_features", feature_cols, ratings, xlabels, figsize=(12, 3),
+    colors=colors)
 feature_bar_chart(
     ecp, "Rank these upcoming Spack features by importance (ECP)",
-    "ecp_features", feature_cols, ratings, xlabels, figsize=(12, 3))
+    "ecp_features", feature_cols, ratings, xlabels, figsize=(12, 3),
+    colors=colors)
 
 heat_map(
     "Average feature importance by workplace",
@@ -431,10 +442,10 @@ xlabels = ["Spack", "Community", "Docs", "Packages"]
 plt.close()
 feature_bar_chart(df, "Rate the overall quality of...",
                   "all_quality", feature_cols, ratings, xlabels,
-                  figsize=(7, 2), rot=0, ha="center", ymax=110)
+                  figsize=(7, 2), rot=0, ha="center", ymax=110, colors=colors)
 feature_bar_chart(ecp, "Rate the overall quality of... (ECP)",
                   "ecp_quality", feature_cols, ratings, xlabels,
-                  figsize=(7, 2), rot=0, ha="center", ymax=40)
+                  figsize=(7, 2), rot=0, ha="center", ymax=40, colors=colors)
 
 heat_map(
     "Average quality rating by workplace",

@@ -21,7 +21,7 @@ names = {
     "gpus_next_year"                 : "Which GPUs do you expect to use with Spack in the next year?",
     "compilers_next_year"            : "Which compilers do you expect to use with Spack in the next year?",
 
-    "feature_importance_concretizer" : "Rank these TBD Spack features by importance [New, backtracking concretizer]",
+    "feature_new_concretizer"        : "Rank these TBD Spack features by importance [New, backtracking concretizer]",
     "feature_use_existing_installs"  : "Rank these TBD Spack features by importance [Use existing installs more aggressively]",
     "feature_separate_build_deps"    : "Rank these TBD Spack features by importance [Separate concretization of build dependencies ]",
     "feature_cloud_integration"      : "Rank these TBD Spack features by importance [AWS/Azure/GCP/Cloud integration]",
