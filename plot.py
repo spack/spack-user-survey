@@ -32,6 +32,7 @@ df.columns = [cols.description_to_name[c.strip()] for c in df.columns]
 # just members of ECP
 ecp = df[df.in_ecp == "Yes"]
 
+
 #
 # Are you part of ECP?
 #
@@ -238,9 +239,20 @@ def modulize(df):
     frame = frame.replace(["Environment Modules (TCL modules)"], "TCL Modules")
     return frame
 
-
 two_multi_bars("how_use_pkgs", filt=modulize, name="how_use_pkgs_any",
                figsize=(6, 5))
+
+
+gpus = ("NVIDIA", "AMD", "Intel")
+def any_gpu(df):
+    """Add another column for "any module system"."""
+    has_gpu = df.apply(lambda ser: ser.isin(gpus).any(), axis=1)
+    print(len(has_gpu))
+    extra_col = has_gpu.apply(lambda c: "Any GPU" if c else None)
+    frame = pd.concat([df, extra_col], axis=1)
+    return frame
+
+two_multi_bars("gpus_next_year", filt=any_gpu, name="gpus_next_year_any")
 
 #
 # Multi-choice bar charts
