@@ -4,6 +4,7 @@ import os
 import sys
 
 import matplotlib.pyplot as plt
+import matplotlib.cm as cm
 import pandas as pd
 import seaborn as sn
 
@@ -195,7 +196,8 @@ two_multi_bars("app_area", figsize=(5, 5))
 two_multi_bars("how_contributed")
 
 two_multi_bars("spack_versions",
-               filt=lambda df: df.replace("Not sure. ", "Do not know"))
+               filt=lambda df: df.replace("Not sure. ", "do not know").replace(
+                   "Do not know", "do not know"))
 
 two_multi_bars("os", filt=lambda df: df.replace(
     "Windows Subsystem for Linux (WSL)", "WSL"))
@@ -296,7 +298,7 @@ def score_averages(df, feature_cols, ratings, weights):
 
 def heat_map(
         title, filename, feature_cols, ratings, weights, labels, transpose,
-        data_sets):
+        cmap, data_sets):
     """Generate a heat ma of
 
     Args:
@@ -309,6 +311,7 @@ def heat_map(
             {"bad": 0, "ok": 1, "good": 2}.
         labels (list): labels for the features -- default is feature col names.
         transpose (bool): True for features on X axis, False for labels on Y.
+        cmap (str): Name of colormap to use
         data_sets (dict str -> DataFrame): names for y axis of heat map,
             mapped to data frames to get stats from.
     """
@@ -330,7 +333,7 @@ def heat_map(
         labels = [feature_labels[col] for col in heat_map.index]
 
     ax = sn.heatmap(
-        heat_map, cmap="RdYlGn", annot=True, vmin=0, vmax=4, square=True,
+        heat_map, cmap=cmap, annot=True, vmin=0, vmax=4, square=True,
         fmt=".1f", annot_kws={"size": 9})
 
     cbar = ax.collections[0].colorbar
@@ -353,9 +356,6 @@ def heat_map(
 
     plt.tight_layout()
     save("heat_map_" + filename)
-
-# These colors match to the Red/Yellow/Green heat maps
-colors = ["#cc2222", "orange", "#dddd00", "#94c772", "green"]
 
 ratings = [
     "Not Important",
@@ -398,19 +398,22 @@ xlabels = [
 ]
 
 plt.close()
+feature_cmap = cm.get_cmap("cool")
+feature_bar_colors = [feature_cmap(v) for v in [0.0, 0.25, 0.5, 0.75, 1.0]]
+
 feature_bar_chart(
     df, "Rank these upcoming Spack features by importance",
     "all_features", feature_cols, ratings, xlabels, figsize=(12, 3),
-    colors=colors)
+    colors=feature_bar_colors)
 feature_bar_chart(
     ecp, "Rank these upcoming Spack features by importance (ECP)",
     "ecp_features", feature_cols, ratings, xlabels, figsize=(12, 3),
-    colors=colors)
+    colors=feature_bar_colors)
 
 heat_map(
     "Average feature importance by workplace",
     "features_by_workplace",
-    feature_cols, ratings, weights, xlabels, False, {
+    feature_cols, ratings, weights, xlabels, False, feature_cmap, {
         "All"        : df,
         "ECP"        : df[df.in_ecp == "Yes"],
         "NNSA"       : df[df.workplace == "DOE/NNSA Lab (e.g., LLNL/LANL/SNL)"],
@@ -425,7 +428,7 @@ heat_map(
 heat_map(
     "Average feature importance by job type",
     "features_by_job",
-    feature_cols, ratings, weights, xlabels, False, {
+    feature_cols, ratings, weights, xlabels, False, feature_cmap, {
         "All"                  : df,
         "Developer"    : df[(df.user_type == "Software Developer")
                             | (df.user_type == "All of the Above")],
@@ -455,18 +458,23 @@ feature_cols = [
 
 xlabels = ["Spack", "Community", "Docs", "Packages"]
 
+
+quality_cmap = "RdYlGn"
+# These colors match to the Red/Yellow/Green heat maps
+bar_colors = ["#cc2222", "orange", "#dddd00", "#94c772", "green"]
+
 plt.close()
 feature_bar_chart(df, "Rate the overall quality of...",
                   "all_quality", feature_cols, ratings, xlabels,
-                  figsize=(7, 2), rot=0, ha="center", ymax=110, colors=colors)
+                  figsize=(7, 2), rot=0, ha="center", ymax=110, colors=bar_colors)
 feature_bar_chart(ecp, "Rate the overall quality of... (ECP)",
                   "ecp_quality", feature_cols, ratings, xlabels,
-                  figsize=(7, 2), rot=0, ha="center", ymax=40, colors=colors)
+                  figsize=(7, 2), rot=0, ha="center", ymax=40, colors=bar_colors)
 
 heat_map(
     "Average quality rating by workplace",
     "quality_by_workplace",
-    feature_cols, ratings, weights, xlabels, True, {
+    feature_cols, ratings, weights, xlabels, True, quality_cmap, {
         "All"        : df,
         "ECP"        : df[df.in_ecp == "Yes"],
         "NNSA"       : df[df.workplace == "DOE/NNSA Lab (e.g., LLNL/LANL/SNL)"],
@@ -481,7 +489,7 @@ heat_map(
 heat_map(
     "Average quality rating by job type",
     "quality_by_job",
-    feature_cols, ratings, weights, xlabels, True, {
+    feature_cols, ratings, weights, xlabels, True, quality_cmap, {
         "All"          : df,
         "Developer"    : df[(df.user_type == "Software Developer")
                             | (df.user_type == "All of the Above")],
