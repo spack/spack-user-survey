@@ -193,7 +193,10 @@ def two_multi_bars(col, sort=None, index=None, filt=None, name=None,
 
 two_multi_bars("app_area", figsize=(5, 5))
 two_multi_bars("how_contributed")
-two_multi_bars("spack_versions")
+
+two_multi_bars("spack_versions",
+               filt=lambda df: df.replace("Not sure. ", "Do not know"))
+
 two_multi_bars("os", filt=lambda df: df.replace(
     "Windows Subsystem for Linux (WSL)", "WSL"))
 two_multi_bars("python_version",
@@ -247,7 +250,6 @@ gpus = ("NVIDIA", "AMD", "Intel")
 def any_gpu(df):
     """Add another column for "any module system"."""
     has_gpu = df.apply(lambda ser: ser.isin(gpus).any(), axis=1)
-    print(len(has_gpu))
     extra_col = has_gpu.apply(lambda c: "Any GPU" if c else None)
     frame = pd.concat([df, extra_col], axis=1)
     return frame
