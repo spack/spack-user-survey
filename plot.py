@@ -5,6 +5,7 @@ import sys
 
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
+import matplotlib.colors as mcolors
 import pandas as pd
 import seaborn as sn
 
@@ -267,9 +268,11 @@ def feature_bar_chart(
     # value counts for all columns
     values = df[feature_cols].apply(
         pd.Series.value_counts, sort=False).reindex(ratings).transpose()
+    values /= len(df) / 100  # normalize to percentages
 
     ax = values.plot.bar(y=ratings, figsize=figsize, rot=0, color=colors)
     ax.legend(ncol=5, labels=ratings, frameon=False)
+    plt.ylabel("Percent of respondents")
     plt.xticks(rotation=rot)
     if ymax:
         plt.ylim(0, ymax)
@@ -398,7 +401,27 @@ xlabels = [
 ]
 
 plt.close()
-feature_cmap = cm.get_cmap("cool")
+
+
+def make_colormap(seq):
+    """Return a LinearSegmentedColormap
+    seq: a sequence of floats and RGB-tuples. The floats should be increasing
+    and in the interval (0,1).
+    """
+    seq = [(None,) * 3, 0.0] + list(seq) + [1.0, (None,) * 3]
+    cdict = {'red': [], 'green': [], 'blue': []}
+    for i, item in enumerate(seq):
+        if isinstance(item, float):
+            r1, g1, b1 = seq[i - 1]
+            r2, g2, b2 = seq[i + 1]
+            cdict['red'].append([item, r1, r2])
+            cdict['green'].append([item, g1, g2])
+            cdict['blue'].append([item, b1, b2])
+    return mcolors.LinearSegmentedColormap('CustomMap', cdict)
+
+c = mcolors.ColorConverter().to_rgb
+feature_cmap = make_colormap([c('#e9e9fc'), c('#0000ad')])
+
 feature_bar_colors = [feature_cmap(v) for v in [0.0, 0.25, 0.5, 0.75, 1.0]]
 
 feature_bar_chart(
@@ -466,10 +489,10 @@ bar_colors = ["#cc2222", "orange", "#dddd00", "#94c772", "green"]
 plt.close()
 feature_bar_chart(df, "Rate the overall quality of...",
                   "all_quality", feature_cols, ratings, xlabels,
-                  figsize=(7, 2), rot=0, ha="center", ymax=110, colors=bar_colors)
+                  figsize=(7, 2), rot=0, ha="center", ymax=60, colors=bar_colors)
 feature_bar_chart(ecp, "Rate the overall quality of... (ECP)",
                   "ecp_quality", feature_cols, ratings, xlabels,
-                  figsize=(7, 2), rot=0, ha="center", ymax=40, colors=bar_colors)
+                  figsize=(7, 2), rot=0, ha="center", ymax=60, colors=bar_colors)
 
 heat_map(
     "Average quality rating by workplace",
